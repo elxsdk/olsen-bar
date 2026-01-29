@@ -1,30 +1,51 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { currentMonthSchedule, baristas, shifts } from '../data/mockData';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { getSchedule, getBaristas, shifts } from '../data/mockData';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 
 export default function Schedule() {
   const [currentDate] = useState(new Date());
+  const [loading, setLoading] = useState(true);
+  const [baristas, setBaristas] = useState([]);
+  const [schedule, setSchedule] = useState({});
   const todayCardRef = useRef(null);
 
-  const daysInMonth = useMemo(() => {
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [baristasData, scheduleData] = await Promise.all([
+          getBaristas(),
+          getSchedule()
+        ]);
+        setBaristas(baristasData);
+        setSchedule(scheduleData);
+      } catch (error) {
+        console.error('Error loading data:', error);
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
+  const daysInMonth = (() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const days = new Date(year, month + 1, 0).getDate();
     return Array.from({ length: days }, (_, i) => i + 1);
-  }, [currentDate]);
+  })();
 
   const getShiftData = (day) => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const schedule = currentMonthSchedule[dateStr];
+    const daySchedule = schedule[dateStr];
 
-    if (!schedule) return { morning: [], middle: [], evening: [] };
+    if (!daySchedule) return { morning: [], middle: [], evening: [] };
 
     return {
-      morning: schedule.morning?.map(id => baristas.find(b => b.id === id)).filter(Boolean) || [],
-      middle: schedule.middle?.map(id => baristas.find(b => b.id === id)).filter(Boolean) || [],
-      evening: schedule.evening?.map(id => baristas.find(b => b.id === id)).filter(Boolean) || []
+      morning: daySchedule.morning?.map(id => baristas.find(b => b.id === id)).filter(Boolean) || [],
+      middle: daySchedule.middle?.map(id => baristas.find(b => b.id === id)).filter(Boolean) || [],
+      evening: daySchedule.evening?.map(id => baristas.find(b => b.id === id)).filter(Boolean) || []
     };
   };
 
@@ -35,6 +56,27 @@ export default function Schedule() {
       todayCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '300px',
+        color: 'var(--color-text-muted)'
+      }}>
+        <Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} />
+        <span style={{ marginLeft: 'var(--spacing-sm)' }}>Memuat jadwal...</span>
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -58,140 +100,113 @@ export default function Schedule() {
         <button 
           onClick={scrollToToday}
           style={{ 
-            padding: 'var(--spacing-xs) var(--spacing-sm)', 
+            padding: 'var(--spacing-xs) var(--spacing-md)',
             background: 'var(--color-accent-primary)',
             color: '#000',
             borderRadius: 'var(--border-radius-md)',
             fontSize: 'var(--font-size-sm)',
-            fontWeight: 600,
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = '#c89563'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'var(--color-accent-primary)'}
-        >
+            fontWeight: 600
+          }}>
           Hari Ini
         </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
         {daysInMonth.map(day => {
-            const schedule = getShiftData(day);
+            const shiftData = getShiftData(day);
             const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
             const isToday = new Date().toDateString() === dateObj.toDateString();
             const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
-            const fullDate = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
 
             return (
               <div 
                 key={day} 
-                ref={isToday ? todayCardRef : null}
+                ref={isToday ? todayCardRef : null} 
                 style={{
-                background: 'var(--color-bg-secondary)',
-                borderRadius: 'var(--border-radius-md)',
-                border: isToday ? '1px solid var(--color-accent-primary)' : '1px solid var(--color-bg-tertiary)',
-                padding: 'var(--spacing-md)'
-              }}>
+                  background: 'var(--color-bg-secondary)',
+                  borderRadius: 'var(--border-radius-lg)',
+                  padding: 'var(--spacing-md)',
+                  border: isToday ? '2px solid var(--color-accent-primary)' : '1px solid var(--color-bg-tertiary)',
+                }}>
                 <div style={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   alignItems: 'center',
-                  marginBottom: 'var(--spacing-md)',
-                  borderBottom: '1px solid var(--color-bg-tertiary)',
-                  paddingBottom: 'var(--spacing-sm)'
+                  marginBottom: 'var(--spacing-sm)',
+                  paddingBottom: 'var(--spacing-sm)',
+                  borderBottom: '1px solid var(--color-bg-tertiary)'
                 }}>
                   <div>
                     <span style={{ 
-                      display: 'block', 
-                      fontWeight: 600, 
-                      fontSize: 'var(--font-size-lg)',
-                      color: isToday ? 'var(--color-accent-primary)' : 'var(--color-text-primary)'
+                      fontSize: 'var(--font-size-lg)', 
+                      fontWeight: 600,
+                      color: isWeekend ? 'var(--color-accent-primary)' : 'var(--color-text-primary)'
                     }}>
-                      {dayName}
+                      {dayName}, {day}
                     </span>
-                    <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-                      {fullDate}
-                    </span>
+                    {isToday && (
+                      <span style={{
+                        marginLeft: 'var(--spacing-sm)',
+                        padding: '2px 8px',
+                        background: 'var(--color-accent-primary)',
+                        color: '#000',
+                        borderRadius: 'var(--border-radius-sm)',
+                        fontSize: 'var(--font-size-xs)',
+                        fontWeight: 600
+                      }}>
+                        Hari Ini
+                      </span>
+                    )}
                   </div>
-                  {isToday && (
-                    <span style={{ 
-                      fontSize: 'var(--font-size-xs)', 
-                      background: 'var(--color-accent-primary)', 
-                      color: 'var(--color-bg-primary)',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontWeight: 600
-                    }}>
-                      Hari Ini
-                    </span>
-                  )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--spacing-md)' }}>
-                  {/* Pagi */}
-                  <div>
-                    <h4 style={{ margin: '0 0 var(--spacing-xs) 0', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>Pagi</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {schedule.morning.length > 0 ? schedule.morning.map(staff => (
-                        <div key={staff.id} style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '6px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          padding: '4px 8px',
-                          borderRadius: '100px',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          fontSize: 'var(--font-size-sm)'
+                  {shifts.map(shift => {
+                    const shiftStaff = shiftData[shift.id] || [];
+                    return (
+                      <div key={shift.id} style={{ 
+                        background: 'var(--color-bg-primary)',
+                        borderRadius: 'var(--border-radius-md)',
+                        padding: 'var(--spacing-sm)'
+                      }}>
+                        <div style={{ 
+                          fontSize: 'var(--font-size-sm)', 
+                          color: 'var(--color-accent-primary)',
+                          fontWeight: 500,
+                          marginBottom: 'var(--spacing-xs)'
                         }}>
-                          <img src={staff.avatar} style={{ width: '20px', height: '20px', borderRadius: '50%' }} alt="" />
-                          <span>{staff.name}</span>
+                          {shift.label} ({shift.time})
                         </div>
-                      )) : <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', fontStyle: 'italic' }}>-</span>}
-                    </div>
-                  </div>
-
-                  {/* Siang */}
-                   <div>
-                    <h4 style={{ margin: '0 0 var(--spacing-xs) 0', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>Siang</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {schedule.middle.length > 0 ? schedule.middle.map(staff => (
-                        <div key={staff.id} style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '6px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          padding: '4px 8px',
-                          borderRadius: '100px',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          fontSize: 'var(--font-size-sm)'
-                        }}>
-                          <img src={staff.avatar} style={{ width: '20px', height: '20px', borderRadius: '50%' }} alt="" />
-                          <span>{staff.name}</span>
-                        </div>
-                      )) : <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', fontStyle: 'italic' }}>-</span>}
-                    </div>
-                  </div>
-
-                  {/* Sore */}
-                  <div>
-                    <h4 style={{ margin: '0 0 var(--spacing-xs) 0', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>Sore</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {schedule.evening.length > 0 ? schedule.evening.map(staff => (
-                        <div key={staff.id} style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '6px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          padding: '4px 8px',
-                          borderRadius: '100px',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          fontSize: 'var(--font-size-sm)'
-                        }}>
-                          <img src={staff.avatar} style={{ width: '20px', height: '20px', borderRadius: '50%' }} alt="" />
-                          <span>{staff.name}</span>
-                        </div>
-                      )) : <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', fontStyle: 'italic' }}>-</span>}
-                    </div>
-                  </div>
+                        {shiftStaff.length > 0 ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {shiftStaff.map(barista => (
+                              <div key={barista.id} style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '4px',
+                                padding: '2px 6px',
+                                background: 'var(--color-bg-tertiary)',
+                                borderRadius: 'var(--border-radius-sm)',
+                                fontSize: 'var(--font-size-xs)'
+                              }}>
+                                <img 
+                                  src={barista.avatar} 
+                                  alt={barista.name}
+                                  style={{ width: '16px', height: '16px', borderRadius: '50%' }}
+                                />
+                                {barista.name}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                            Belum ada jadwal
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );

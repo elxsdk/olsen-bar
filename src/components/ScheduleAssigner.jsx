@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
-import { Calendar, Save } from 'lucide-react';
-import { baristas, currentMonthSchedule, updateDaySchedule, shifts } from '../data/mockData';
+import { useState, useEffect, useRef } from 'react';
+import { Calendar, Save, Loader2 } from 'lucide-react';
+import { getBaristas, getSchedule, updateDaySchedule, shifts } from '../data/mockData';
 
 export default function ScheduleAssigner({ onDataChange }) {
   const dateInputRef = useRef(null);
@@ -9,23 +9,56 @@ export default function ScheduleAssigner({ onDataChange }) {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   });
 
+  const [baristas, setBaristas] = useState([]);
+  const [schedule, setSchedule] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
   const [morningShift, setMorningShift] = useState([]);
   const [middleShift, setMiddleShift] = useState([]);
   const [eveningShift, setEveningShift] = useState([]);
 
-  // Load schedule when date changes
-  useMemo(() => {
-    const schedule = currentMonthSchedule[selectedDate];
-    if (schedule) {
-      setMorningShift(schedule.morning || []);
-      setMiddleShift(schedule.middle || []);
-      setEveningShift(schedule.evening || []);
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [baristasData, scheduleData] = await Promise.all([
+        getBaristas(),
+        getSchedule()
+      ]);
+      setBaristas(baristasData);
+      setSchedule(scheduleData);
+      
+      // Load schedule for selected date
+      const daySchedule = scheduleData[selectedDate];
+      if (daySchedule) {
+        setMorningShift(daySchedule.morning || []);
+        setMiddleShift(daySchedule.middle || []);
+        setEveningShift(daySchedule.evening || []);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+    setLoading(false);
+  };
+
+  // Update shifts when date changes
+  useEffect(() => {
+    const daySchedule = schedule[selectedDate];
+    if (daySchedule) {
+      setMorningShift(daySchedule.morning || []);
+      setMiddleShift(daySchedule.middle || []);
+      setEveningShift(daySchedule.evening || []);
     } else {
       setMorningShift([]);
       setMiddleShift([]);
       setEveningShift([]);
     }
-  }, [selectedDate]);
+  }, [selectedDate, schedule]);
 
   const handleToggleBarista = (shift, baristaId) => {
     let setter, current;
@@ -48,30 +81,50 @@ export default function ScheduleAssigner({ onDataChange }) {
     }
   };
 
-  const handleSave = () => {
-    updateDaySchedule(selectedDate, 'morning', morningShift);
-    updateDaySchedule(selectedDate, 'middle', middleShift);
-    updateDaySchedule(selectedDate, 'evening', eveningShift);
-    onDataChange?.();
-    
-    // Show success notification
-    alert('✓ Jadwal berhasil disimpan!');
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await Promise.all([
+        updateDaySchedule(selectedDate, 'morning', morningShift),
+        updateDaySchedule(selectedDate, 'middle', middleShift),
+        updateDaySchedule(selectedDate, 'evening', eveningShift)
+      ]);
+      
+      // Refresh schedule data
+      const newSchedule = await getSchedule();
+      setSchedule(newSchedule);
+      
+      onDataChange?.();
+      alert('✓ Jadwal berhasil disimpan!');
+    } catch (error) {
+      alert('Gagal menyimpan jadwal: ' + error.message);
+    }
+    setSaving(false);
   };
 
-  const handleClearSchedule = () => {
+  const handleClearSchedule = async () => {
     if (window.confirm(`Bersihkan jadwal untuk ${formatDateDisplay(selectedDate)}?\n\nSemua barista akan dihapus dari semua shift.`)) {
-      setMorningShift([]);
-      setMiddleShift([]);
-      setEveningShift([]);
-      
-      // Save empty schedule
-      updateDaySchedule(selectedDate, 'morning', []);
-      updateDaySchedule(selectedDate, 'middle', []);
-      updateDaySchedule(selectedDate, 'evening', []);
-      onDataChange?.();
-      
-      // Show notification
-      alert('✓ Jadwal berhasil dibersihkan!');
+      setSaving(true);
+      try {
+        setMorningShift([]);
+        setMiddleShift([]);
+        setEveningShift([]);
+        
+        await Promise.all([
+          updateDaySchedule(selectedDate, 'morning', []),
+          updateDaySchedule(selectedDate, 'middle', []),
+          updateDaySchedule(selectedDate, 'evening', [])
+        ]);
+        
+        const newSchedule = await getSchedule();
+        setSchedule(newSchedule);
+        
+        onDataChange?.();
+        alert('✓ Jadwal berhasil dibersihkan!');
+      } catch (error) {
+        alert('Gagal membersihkan jadwal: ' + error.message);
+      }
+      setSaving(false);
     }
   };
 
@@ -90,6 +143,27 @@ export default function ScheduleAssigner({ onDataChange }) {
       year: 'numeric' 
     });
   };
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '200px',
+        color: 'var(--color-text-muted)'
+      }}>
+        <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
+        <span style={{ marginLeft: 'var(--spacing-sm)' }}>Memuat data...</span>
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -157,6 +231,7 @@ export default function ScheduleAssigner({ onDataChange }) {
       }}>
         <button
           onClick={handleClearSchedule}
+          disabled={saving}
           style={{
             flex: 1,
             padding: 'var(--spacing-sm)',
@@ -166,7 +241,8 @@ export default function ScheduleAssigner({ onDataChange }) {
             color: '#dc2626',
             fontSize: 'var(--font-size-sm)',
             fontWeight: 500,
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            opacity: saving ? 0.7 : 1
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = '#dc2626';
@@ -250,6 +326,7 @@ export default function ScheduleAssigner({ onDataChange }) {
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => handleToggleBarista(shift.id, barista.id)}
+                      disabled={saving}
                       style={{
                         width: '18px',
                         height: '18px',
@@ -296,6 +373,7 @@ export default function ScheduleAssigner({ onDataChange }) {
       <button
         id="save-schedule-btn"
         onClick={handleSave}
+        disabled={saving}
         style={{
           width: '100%',
           display: 'flex',
@@ -303,7 +381,7 @@ export default function ScheduleAssigner({ onDataChange }) {
           justifyContent: 'center',
           gap: 'var(--spacing-sm)',
           padding: 'var(--spacing-md)',
-          background: 'var(--color-accent-primary)',
+          background: saving ? '#888' : 'var(--color-accent-primary)',
           color: '#000',
           borderRadius: 'var(--border-radius-md)',
           fontSize: 'var(--font-size-base)',
@@ -311,16 +389,29 @@ export default function ScheduleAssigner({ onDataChange }) {
           transition: 'all 0.2s'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#c89563';
-          e.currentTarget.style.transform = 'translateY(-2px)';
+          if (!saving) {
+            e.currentTarget.style.background = '#c89563';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'var(--color-accent-primary)';
-          e.currentTarget.style.transform = 'translateY(0)';
+          if (!saving) {
+            e.currentTarget.style.background = 'var(--color-accent-primary)';
+            e.currentTarget.style.transform = 'translateY(0)';
+          }
         }}
       >
-        <Save size={20} />
-        Simpan Jadwal
+        {saving ? (
+          <>
+            <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+            Menyimpan...
+          </>
+        ) : (
+          <>
+            <Save size={20} />
+            Simpan Jadwal
+          </>
+        )}
       </button>
     </div>
   );

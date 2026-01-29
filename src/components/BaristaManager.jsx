@@ -1,12 +1,29 @@
-import { useState } from 'react';
-import { UserPlus, Edit2, Trash2 } from 'lucide-react';
-import { baristas, addBarista, updateBarista, deleteBarista } from '../data/mockData';
+import { useState, useEffect } from 'react';
+import { UserPlus, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { getBaristas, addBarista, updateBarista, deleteBarista } from '../data/mockData';
 import BaristaForm from './BaristaForm';
 
 export default function BaristaManager({ onDataChange }) {
   const [showForm, setShowForm] = useState(false);
   const [editingBarista, setEditingBarista] = useState(null);
-  const [baristaList, setBaristaList] = useState(baristas);
+  const [baristaList, setBaristaList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadBaristas();
+  }, []);
+
+  const loadBaristas = async () => {
+    setLoading(true);
+    try {
+      const data = await getBaristas();
+      setBaristaList(data);
+    } catch (error) {
+      console.error('Error loading baristas:', error);
+    }
+    setLoading(false);
+  };
 
   const handleAdd = () => {
     setEditingBarista(null);
@@ -18,23 +35,60 @@ export default function BaristaManager({ onDataChange }) {
     setShowForm(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('Yakin ingin menghapus barista ini? Barista akan dihapus dari semua jadwal.')) {
-      deleteBarista(id);
-      setBaristaList(baristas);
-      onDataChange?.();
+      setSaving(true);
+      try {
+        await deleteBarista(id);
+        await loadBaristas();
+        onDataChange?.();
+        alert('✓ Barista berhasil dihapus!');
+      } catch (error) {
+        alert('Gagal menghapus barista: ' + error.message);
+      }
+      setSaving(false);
     }
   };
 
-  const handleSave = (baristaData) => {
-    if (editingBarista) {
-      updateBarista(editingBarista.id, baristaData);
-    } else {
-      addBarista(baristaData);
+  const handleSave = async (baristaData) => {
+    setSaving(true);
+    try {
+      if (editingBarista) {
+        await updateBarista(editingBarista.id, baristaData);
+        alert('✓ Barista berhasil diupdate!');
+      } else {
+        await addBarista(baristaData);
+        alert('✓ Barista berhasil ditambahkan!');
+      }
+      await loadBaristas();
+      onDataChange?.();
+      setShowForm(false);
+    } catch (error) {
+      alert('Gagal menyimpan barista: ' + error.message);
     }
-    setBaristaList(baristas);
-    onDataChange?.();
+    setSaving(false);
   };
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '200px',
+        color: 'var(--color-text-muted)'
+      }}>
+        <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
+        <span style={{ marginLeft: 'var(--spacing-sm)' }}>Memuat data barista...</span>
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -49,6 +103,7 @@ export default function BaristaManager({ onDataChange }) {
         </h3>
         <button
           onClick={handleAdd}
+          disabled={saving}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -59,7 +114,8 @@ export default function BaristaManager({ onDataChange }) {
             borderRadius: 'var(--border-radius-md)',
             fontSize: 'var(--font-size-sm)',
             fontWeight: 600,
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            opacity: saving ? 0.7 : 1
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = '#c89563';
@@ -133,6 +189,7 @@ export default function BaristaManager({ onDataChange }) {
             }}>
               <button
                 onClick={() => handleEdit(barista)}
+                disabled={saving}
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -160,6 +217,7 @@ export default function BaristaManager({ onDataChange }) {
               </button>
               <button
                 onClick={() => handleDelete(barista.id)}
+                disabled={saving}
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -205,6 +263,7 @@ export default function BaristaManager({ onDataChange }) {
         onClose={() => setShowForm(false)}
         onSave={handleSave}
         barista={editingBarista}
+        saving={saving}
       />
     </div>
   );

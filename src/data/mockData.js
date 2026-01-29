@@ -1,157 +1,149 @@
-// LocalStorage keys
-const STORAGE_KEYS = {
-  BARISTAS: 'olsen_baristas',
-  SCHEDULE: 'olsen_schedule'
-};
+// API base URL - use relative path for production, full URL for development
+const API_BASE = import.meta.env.PROD ? '' : '';
 
-// Default data
-const defaultBaristas = [
-  { id: 1, name: 'Budi', role: 'Head Barista', avatar: 'https://ui-avatars.com/api/?name=Budi&background=d4a373&color=fff' },
-  { id: 2, name: 'Siti', role: 'Senior Barista', avatar: 'https://ui-avatars.com/api/?name=Siti&background=faedcd&color=0f1115' },
-  { id: 3, name: 'Andi', role: 'Barista', avatar: 'https://ui-avatars.com/api/?name=Andi&background=6b705c&color=fff' },
-  { id: 4, name: 'Dewi', role: 'Barista', avatar: 'https://ui-avatars.com/api/?name=Dewi&background=dda15e&color=fff' },
-];
-
+// Shifts data (static, no need to store in DB)
 export const shifts = [
   { id: 'morning', label: 'Pagi', time: '09:00 - 17:00' },
-  { id: 'middle', label: 'siang', time: '12:00 - 20:00' },
+  { id: 'middle', label: 'Siang', time: '12:00 - 20:00' },
   { id: 'evening', label: 'Sore', time: '17:00 - 23:59' },
 ];
 
-// Helper to generate a month of schedule
-export const generateMockSchedule = (year, month) => {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const schedule = {};
+// Cache for data
+let baristasCache = null;
+let scheduleCache = null;
 
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+// ============ BARISTAS API ============
+
+export const getBaristas = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/api/baristas`);
+    if (!response.ok) throw new Error('Failed to fetch baristas');
+    baristasCache = await response.json();
+    return baristasCache;
+  } catch (error) {
+    console.error('Error fetching baristas:', error);
+    return baristasCache || [];
+  }
+};
+
+export const addBarista = async (barista) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/baristas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(barista)
+    });
+    if (!response.ok) throw new Error('Failed to add barista');
+    const newBarista = await response.json();
+    baristasCache = null; // Invalidate cache
+    return newBarista;
+  } catch (error) {
+    console.error('Error adding barista:', error);
+    throw error;
+  }
+};
+
+export const updateBarista = async (id, updates) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/baristas?id=${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    if (!response.ok) throw new Error('Failed to update barista');
+    const updatedBarista = await response.json();
+    baristasCache = null; // Invalidate cache
+    return updatedBarista;
+  } catch (error) {
+    console.error('Error updating barista:', error);
+    throw error;
+  }
+};
+
+export const deleteBarista = async (id) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/baristas?id=${id}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to delete barista');
+    baristasCache = null; // Invalidate cache
+    return true;
+  } catch (error) {
+    console.error('Error deleting barista:', error);
+    throw error;
+  }
+};
+
+// ============ SCHEDULES API ============
+
+export const getSchedule = async (month = null) => {
+  try {
+    const now = new Date();
+    const monthParam = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     
-    // Rotate between different shift patterns for variety
-    const pattern = d % 3;
-    if (pattern === 0) {
-       schedule[dateStr] = {
-         morning: [1, 2],
-         middle: [3, 4],
-         evening: [1, 3]
-       };
-    } else if (pattern === 1) {
-       schedule[dateStr] = {
-         morning: [2, 3],
-         middle: [1, 4],
-         evening: [2, 4]
-       };
-    } else {
-       schedule[dateStr] = {
-         morning: [1, 4],
-         middle: [2, 3],
-         evening: [1, 2]
-       };
-    }
-  }
-  return schedule;
-};
-
-// Load data from localStorage or use defaults
-const loadBaristas = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEYS.BARISTAS);
-    if (stored) {
-      return JSON.parse(stored);
-    }
+    const response = await fetch(`${API_BASE}/api/schedules?month=${monthParam}`);
+    if (!response.ok) throw new Error('Failed to fetch schedule');
+    scheduleCache = await response.json();
+    return scheduleCache;
   } catch (error) {
-    console.error('Error loading baristas:', error);
+    console.error('Error fetching schedule:', error);
+    return scheduleCache || {};
   }
-  return defaultBaristas;
 };
 
-const loadSchedule = () => {
+export const updateDaySchedule = async (date, shift, baristaIds) => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEYS.SCHEDULE);
-    if (stored) {
-      return JSON.parse(stored);
-    }
+    const response = await fetch(`${API_BASE}/api/schedules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, shift, baristaIds })
+    });
+    if (!response.ok) throw new Error('Failed to update schedule');
+    scheduleCache = null; // Invalidate cache
+    return await response.json();
   } catch (error) {
-    console.error('Error loading schedule:', error);
+    console.error('Error updating schedule:', error);
+    throw error;
   }
-  return generateMockSchedule(new Date().getFullYear(), new Date().getMonth());
 };
 
-// Export initial data
-export let baristas = loadBaristas();
-export let currentMonthSchedule = loadSchedule();
-
-// Save functions
-const saveBaristas = (data) => {
+export const clearDaySchedule = async (date) => {
   try {
-    localStorage.setItem(STORAGE_KEYS.BARISTAS, JSON.stringify(data));
-    baristas = data;
+    const response = await fetch(`${API_BASE}/api/schedules?date=${date}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to clear schedule');
+    scheduleCache = null; // Invalidate cache
+    return true;
   } catch (error) {
-    console.error('Error saving baristas:', error);
+    console.error('Error clearing schedule:', error);
+    throw error;
   }
 };
 
-const saveSchedule = (data) => {
+// ============ INITIALIZE DATABASE ============
+
+export const initializeDatabase = async () => {
   try {
-    localStorage.setItem(STORAGE_KEYS.SCHEDULE, JSON.stringify(data));
-    currentMonthSchedule = data;
+    const response = await fetch(`${API_BASE}/api/init`);
+    if (!response.ok) throw new Error('Failed to initialize database');
+    return await response.json();
   } catch (error) {
-    console.error('Error saving schedule:', error);
+    console.error('Error initializing database:', error);
+    throw error;
   }
 };
 
-// Barista CRUD operations
-export const addBarista = (barista) => {
-  const updatedBaristas = [...baristas];
-  const newId = Math.max(...updatedBaristas.map(b => b.id), 0) + 1;
-  const newBarista = { ...barista, id: newId };
-  updatedBaristas.push(newBarista);
-  saveBaristas(updatedBaristas);
-  return newBarista;
-};
+// ============ LEGACY EXPORTS FOR COMPATIBILITY ============
+// These are kept for backward compatibility with existing components
+// They will be populated after first API call
 
-export const updateBarista = (id, updates) => {
-  const updatedBaristas = baristas.map(b => 
-    b.id === id ? { ...b, ...updates } : b
-  );
-  saveBaristas(updatedBaristas);
-  return updatedBaristas.find(b => b.id === id);
-};
+export let baristas = [];
+export let currentMonthSchedule = {};
 
-export const deleteBarista = (id) => {
-  const updatedBaristas = baristas.filter(b => b.id !== id);
-  saveBaristas(updatedBaristas);
-  
-  // Also remove from all schedules
-  const updatedSchedule = { ...currentMonthSchedule };
-  Object.keys(updatedSchedule).forEach(date => {
-    updatedSchedule[date] = {
-      morning: updatedSchedule[date].morning?.filter(bId => bId !== id) || [],
-      middle: updatedSchedule[date].middle?.filter(bId => bId !== id) || [],
-      evening: updatedSchedule[date].evening?.filter(bId => bId !== id) || []
-    };
-  });
-  saveSchedule(updatedSchedule);
-  
-  return true;
-};
-
-export const getBaristas = () => {
-  return loadBaristas();
-};
-
-// Schedule management
-export const updateDaySchedule = (date, shift, baristaIds) => {
-  const updatedSchedule = { ...currentMonthSchedule };
-  
-  if (!updatedSchedule[date]) {
-    updatedSchedule[date] = { morning: [], middle: [], evening: [] };
-  }
-  
-  updatedSchedule[date][shift] = baristaIds;
-  saveSchedule(updatedSchedule);
-  return updatedSchedule[date];
-};
-
-export const getSchedule = () => {
-  return loadSchedule();
+// Helper to sync cache to exports
+export const syncData = async () => {
+  baristas = await getBaristas();
+  currentMonthSchedule = await getSchedule();
+  return { baristas, currentMonthSchedule };
 };

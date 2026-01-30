@@ -1,31 +1,45 @@
 import { useState, useEffect, useRef } from 'react';
 import { getSchedule, getBaristas, shifts } from '../data/mockData';
-import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
 export default function Schedule() {
-  const [currentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [baristas, setBaristas] = useState([]);
   const [schedule, setSchedule] = useState({});
   const todayCardRef = useRef(null);
 
+  const loadData = async (date) => {
+    setLoading(true);
+    try {
+      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const [baristasData, scheduleData] = await Promise.all([
+        getBaristas(),
+        getSchedule(monthStr)
+      ]);
+      setBaristas(baristasData);
+      setSchedule(scheduleData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const [baristasData, scheduleData] = await Promise.all([
-          getBaristas(),
-          getSchedule()
-        ]);
-        setBaristas(baristasData);
-        setSchedule(scheduleData);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
+    loadData(currentDate);
+  }, [currentDate]);
+
+  const goToPreviousMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const goToCurrentMonth = () => {
+    setCurrentDate(new Date());
+  };
 
   const daysInMonth = (() => {
     const year = currentDate.getFullYear();
@@ -49,7 +63,45 @@ export default function Schedule() {
     };
   };
 
+  const exportToExcel = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthName = currentDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    
+    // Create CSV content
+    let csvContent = '\uFEFF'; // BOM for UTF-8
+    csvContent += `Jadwal Barista - ${monthName}\n\n`;
+    csvContent += 'Tanggal,Hari,Shift Pagi (09:00-17:00),Shift Siang (12:00-20:00),Shift Sore (17:00-23:59)\n';
+    
+    daysInMonth.forEach(day => {
+      const dateObj = new Date(year, month, day);
+      const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
+      const shiftData = getShiftData(day);
+      
+      const morningStaff = shiftData.morning.map(b => b.name).join(', ') || '-';
+      const middleStaff = shiftData.middle.map(b => b.name).join(', ') || '-';
+      const eveningStaff = shiftData.evening.map(b => b.name).join(', ') || '-';
+      
+      csvContent += `${day} ${currentDate.toLocaleDateString('id-ID', { month: 'short' })},${dayName},"${morningStaff}","${middleStaff}","${eveningStaff}"\n`;
+    });
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Jadwal_Barista_${monthName.replace(' ', '_')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('✓ Jadwal berhasil diexport!\n\nFile dapat dibuka dengan Excel.');
+  };
+
   const monthName = currentDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const isCurrentMonth = new Date().getMonth() === currentDate.getMonth() && 
+                         new Date().getFullYear() === currentDate.getFullYear();
 
   const scrollToToday = () => {
     if (todayCardRef.current) {
@@ -80,42 +132,159 @@ export default function Schedule() {
 
   return (
     <div>
-       <div style={{ 
+      {/* Header with month navigation */}
+      <div style={{ 
         marginBottom: 'var(--spacing-lg)',
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        flexDirection: 'column',
+        gap: 'var(--spacing-md)'
       }}>
-        <h2 style={{ 
-          margin: 0, 
-          fontSize: 'var(--font-size-xl)', 
-          color: 'var(--color-text-primary)',
+        {/* Month navigation row */}
+        <div style={{
           display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--spacing-sm)'
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}>
-          <CalendarIcon color="var(--color-accent-primary)" />
-          {monthName}
-        </h2>
-        <button 
-          onClick={scrollToToday}
-          style={{ 
-            padding: 'var(--spacing-xs) var(--spacing-md)',
-            background: 'var(--color-accent-primary)',
-            color: '#000',
-            borderRadius: 'var(--border-radius-md)',
-            fontSize: 'var(--font-size-sm)',
-            fontWeight: 600
+          <button
+            onClick={goToPreviousMonth}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: 'var(--spacing-xs) var(--spacing-sm)',
+              background: 'var(--color-bg-secondary)',
+              border: '1px solid var(--color-bg-tertiary)',
+              borderRadius: 'var(--border-radius-md)',
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--font-size-sm)',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-accent-primary)';
+              e.currentTarget.style.color = 'var(--color-accent-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-bg-tertiary)';
+              e.currentTarget.style.color = 'var(--color-text-secondary)';
+            }}
+          >
+            <ChevronLeft size={18} />
+            Sebelumnya
+          </button>
+          
+          <h2 style={{ 
+            margin: 0, 
+            fontSize: 'var(--font-size-xl)', 
+            color: 'var(--color-text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--spacing-sm)'
           }}>
-          Hari Ini
-        </button>
+            <CalendarIcon color="var(--color-accent-primary)" />
+            {monthName}
+          </h2>
+
+          <button
+            onClick={goToNextMonth}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: 'var(--spacing-xs) var(--spacing-sm)',
+              background: 'var(--color-bg-secondary)',
+              border: '1px solid var(--color-bg-tertiary)',
+              borderRadius: 'var(--border-radius-md)',
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--font-size-sm)',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-accent-primary)';
+              e.currentTarget.style.color = 'var(--color-accent-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-bg-tertiary)';
+              e.currentTarget.style.color = 'var(--color-text-secondary)';
+            }}
+          >
+            Selanjutnya
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+        {/* Action buttons row */}
+        <div style={{
+          display: 'flex',
+          gap: 'var(--spacing-sm)',
+          justifyContent: 'center'
+        }}>
+          {isCurrentMonth && (
+            <button 
+              onClick={scrollToToday}
+              style={{ 
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                background: 'var(--color-accent-primary)',
+                color: '#000',
+                borderRadius: 'var(--border-radius-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 600
+              }}>
+              Hari Ini
+            </button>
+          )}
+          
+          {!isCurrentMonth && (
+            <button 
+              onClick={goToCurrentMonth}
+              style={{ 
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                background: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-bg-tertiary)',
+                color: 'var(--color-text-secondary)',
+                borderRadius: 'var(--border-radius-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 500
+              }}>
+              Kembali ke Bulan Ini
+            </button>
+          )}
+          
+          <button 
+            onClick={exportToExcel}
+            style={{ 
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: 'var(--spacing-xs) var(--spacing-md)',
+              background: '#22c55e',
+              color: '#fff',
+              borderRadius: 'var(--border-radius-md)',
+              fontSize: 'var(--font-size-sm)',
+              fontWeight: 600,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#16a34a';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#22c55e';
+            }}
+          >
+            <Download size={16} />
+            Export Excel
+          </button>
+        </div>
       </div>
 
+      {/* Schedule cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
         {daysInMonth.map(day => {
             const shiftData = getShiftData(day);
             const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-            const isToday = new Date().toDateString() === dateObj.toDateString();
+            const today = new Date();
+            const isToday = today.getDate() === day && 
+                           today.getMonth() === currentDate.getMonth() && 
+                           today.getFullYear() === currentDate.getFullYear();
             const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
             const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
 

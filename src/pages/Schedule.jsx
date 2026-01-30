@@ -67,23 +67,68 @@ export default function Schedule() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const monthName = currentDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    const daysCount = new Date(year, month + 1, 0).getDate();
+    
+    // Build schedule data per barista
+    const baristaScheduleData = baristas.map(barista => {
+      let totalShifts = 0;
+      const dayData = [];
+      
+      for (let day = 1; day <= daysCount; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const daySchedule = schedule[dateStr];
+        
+        const shifts = [];
+        if (daySchedule?.morning?.includes(barista.id)) shifts.push('M');
+        if (daySchedule?.middle?.includes(barista.id)) shifts.push('Mid');
+        if (daySchedule?.evening?.includes(barista.id)) shifts.push('E');
+        
+        if (shifts.length > 0) {
+          dayData.push(shifts.join('/'));
+          totalShifts += shifts.length;
+        } else {
+          dayData.push('x');
+        }
+      }
+      
+      return {
+        name: barista.name,
+        role: barista.role,
+        dayData,
+        totalShifts
+      };
+    });
     
     // Create CSV content
     let csvContent = '\uFEFF'; // BOM for UTF-8
     csvContent += `Jadwal Barista - ${monthName}\n\n`;
-    csvContent += 'Tanggal,Hari,Shift Pagi (09:00-17:00),Shift Siang (12:00-20:00),Shift Sore (17:00-23:59)\n';
     
-    daysInMonth.forEach(day => {
+    // Header row with dates
+    let headerRow = 'Nama Barista,Role';
+    for (let day = 1; day <= daysCount; day++) {
       const dateObj = new Date(year, month, day);
-      const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
-      const shiftData = getShiftData(day);
-      
-      const morningStaff = shiftData.morning.map(b => b.name).join(', ') || '-';
-      const middleStaff = shiftData.middle.map(b => b.name).join(', ') || '-';
-      const eveningStaff = shiftData.evening.map(b => b.name).join(', ') || '-';
-      
-      csvContent += `${day} ${currentDate.toLocaleDateString('id-ID', { month: 'short' })},${dayName},"${morningStaff}","${middleStaff}","${eveningStaff}"\n`;
+      const weekday = dateObj.toLocaleDateString('id-ID', { weekday: 'short' }).substring(0, 3);
+      headerRow += `,${day} ${weekday}`;
+    }
+    headerRow += ',Total Shift\n';
+    csvContent += headerRow;
+    
+    // Data rows for each barista
+    baristaScheduleData.forEach(barista => {
+      let row = `"${barista.name}","${barista.role}"`;
+      barista.dayData.forEach(shift => {
+        row += `,${shift}`;
+      });
+      row += `,${barista.totalShifts}\n`;
+      csvContent += row;
     });
+    
+    // Add legend
+    csvContent += '\n\nKeterangan:\n';
+    csvContent += 'M,Shift Pagi (09:00 - 17:00)\n';
+    csvContent += 'Mid,Shift Siang (12:00 - 20:00)\n';
+    csvContent += 'E,Shift Sore (17:00 - 23:59)\n';
+    csvContent += 'x,Tidak Shift\n';
     
     // Create and download file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

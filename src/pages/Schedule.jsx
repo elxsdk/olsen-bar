@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getSchedule, getBaristas, shifts } from '../data/mockData';
 import { Calendar as CalendarIcon, Loader2, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -69,79 +70,92 @@ export default function Schedule() {
     const monthName = currentDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
     const daysCount = new Date(year, month + 1, 0).getDate();
     
-    // Build schedule data per barista
-    const baristaScheduleData = baristas.map(barista => {
+    // Build header row
+    const headerRow = ['Nama Barista', 'Role'];
+    for (let day = 1; day <= daysCount; day++) {
+      const dateObj = new Date(year, month, day);
+      const weekday = dateObj.toLocaleDateString('id-ID', { weekday: 'short' }).substring(0, 3);
+      headerRow.push(`${day}`);
+    }
+    headerRow.push('Total');
+    
+    // Build day names row
+    const dayNamesRow = ['', ''];
+    for (let day = 1; day <= daysCount; day++) {
+      const dateObj = new Date(year, month, day);
+      const weekday = dateObj.toLocaleDateString('id-ID', { weekday: 'short' }).substring(0, 3);
+      dayNamesRow.push(weekday);
+    }
+    dayNamesRow.push('');
+    
+    // Build data rows
+    const dataRows = baristas.map(barista => {
       let totalShifts = 0;
-      const dayData = [];
+      const row = [barista.name, barista.role];
       
       for (let day = 1; day <= daysCount; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const daySchedule = schedule[dateStr];
         
-        const shifts = [];
-        if (daySchedule?.morning?.includes(barista.id)) shifts.push('M');
-        if (daySchedule?.middle?.includes(barista.id)) shifts.push('Mid');
-        if (daySchedule?.evening?.includes(barista.id)) shifts.push('E');
+        const shiftCodes = [];
+        if (daySchedule?.morning?.includes(barista.id)) shiftCodes.push('M');
+        if (daySchedule?.middle?.includes(barista.id)) shiftCodes.push('Mid');
+        if (daySchedule?.evening?.includes(barista.id)) shiftCodes.push('E');
         
-        if (shifts.length > 0) {
-          dayData.push(shifts.join('/'));
-          totalShifts += shifts.length;
+        if (shiftCodes.length > 0) {
+          row.push(shiftCodes.join('/'));
+          totalShifts += shiftCodes.length;
         } else {
-          dayData.push('x');
+          row.push('x');
         }
       }
-      
-      return {
-        name: barista.name,
-        role: barista.role,
-        dayData,
-        totalShifts
-      };
+      row.push(totalShifts);
+      return row;
     });
     
-    // Create CSV content
-    let csvContent = '\uFEFF'; // BOM for UTF-8
-    csvContent += `Jadwal Barista - ${monthName}\n\n`;
+    // Build legend rows
+    const legendRows = [
+      [],
+      ['Keterangan:'],
+      ['M', 'Shift Pagi (09:00 - 17:00)'],
+      ['Mid', 'Shift Siang (12:00 - 20:00)'],
+      ['E', 'Shift Sore (17:00 - 23:59)'],
+      ['x', 'Tidak Shift']
+    ];
     
-    // Header row with dates
-    let headerRow = 'Nama Barista,Role';
-    for (let day = 1; day <= daysCount; day++) {
-      const dateObj = new Date(year, month, day);
-      const weekday = dateObj.toLocaleDateString('id-ID', { weekday: 'short' }).substring(0, 3);
-      headerRow += `,${day} ${weekday}`;
+    // Combine all rows
+    const allRows = [
+      [`Jadwal Barista - ${monthName}`],
+      [],
+      dayNamesRow,
+      headerRow,
+      ...dataRows,
+      ...legendRows
+    ];
+    
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(allRows);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 18 }, // Nama Barista
+      { wch: 14 }, // Role
+    ];
+    for (let i = 0; i < daysCount; i++) {
+      colWidths.push({ wch: 5 }); // Date columns
     }
-    headerRow += ',Total Shift\n';
-    csvContent += headerRow;
+    colWidths.push({ wch: 6 }); // Total
+    ws['!cols'] = colWidths;
     
-    // Data rows for each barista
-    baristaScheduleData.forEach(barista => {
-      let row = `"${barista.name}","${barista.role}"`;
-      barista.dayData.forEach(shift => {
-        row += `,${shift}`;
-      });
-      row += `,${barista.totalShifts}\n`;
-      csvContent += row;
-    });
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Jadwal');
     
-    // Add legend
-    csvContent += '\n\nKeterangan:\n';
-    csvContent += 'M,Shift Pagi (09:00 - 17:00)\n';
-    csvContent += 'Mid,Shift Siang (12:00 - 20:00)\n';
-    csvContent += 'E,Shift Sore (17:00 - 23:59)\n';
-    csvContent += 'x,Tidak Shift\n';
+    // Generate and download file
+    const fileName = `Jadwal_Barista_${monthName.replace(' ', '_')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
     
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Jadwal_Barista_${monthName.replace(' ', '_')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    alert('✓ Jadwal berhasil diexport!\n\nFile dapat dibuka dengan Excel.');
+    alert('✓ Jadwal berhasil diexport!\n\nFile Excel sudah terdownload.');
   };
 
   const monthName = currentDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });

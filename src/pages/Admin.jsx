@@ -3,7 +3,7 @@ import { Users, CalendarDays, Lock } from 'lucide-react';
 import BaristaManager from '../components/BaristaManager';
 import ScheduleAssigner from '../components/ScheduleAssigner';
 
-const ADMIN_PASSWORD = 'admin123'; // Simple password for demo
+const ADMIN_PASSWORD = 'lighthouse';
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -118,14 +118,7 @@ export default function Admin() {
               Masuk
             </button>
 
-            <p style={{
-              marginTop: 'var(--spacing-md)',
-              textAlign: 'center',
-              fontSize: 'var(--font-size-xs)',
-              color: 'var(--color-text-muted)'
-            }}>
-              Password: admin123
-            </p>
+
           </form>
         </div>
       </div>

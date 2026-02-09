@@ -40,7 +40,10 @@ export default async function handler(req, res) {
         // Get month schedule (format: YYYY-MM)
         const [year, monthNum] = month.split('-');
         const startDate = `${year}-${monthNum}-01`;
-        const endDate = `${year}-${monthNum}-31`;
+        
+        // Calculate the last day of the month correctly
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const endDate = `${year}-${monthNum}-${String(lastDay).padStart(2, '0')}`;
         
         schedules = await sql`
           SELECT 
@@ -62,7 +65,10 @@ export default async function handler(req, res) {
         const year = now.getFullYear();
         const monthNum = String(now.getMonth() + 1).padStart(2, '0');
         const startDate = `${year}-${monthNum}-01`;
-        const endDate = `${year}-${monthNum}-31`;
+        
+        // Calculate the last day of the month correctly
+        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        const endDate = `${year}-${monthNum}-${String(lastDay).padStart(2, '0')}`;
         
         schedules = await sql`
           SELECT 

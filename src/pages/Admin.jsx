@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Users, CalendarDays, Lock } from 'lucide-react';
+import { Users, CalendarDays, Lock, Package } from 'lucide-react';
 import BaristaManager from '../components/BaristaManager';
 import ScheduleAssigner from '../components/ScheduleAssigner';
+import Inventory from './Inventory';
 
 const ADMIN_PASSWORD = 'lighthouse';
 
@@ -36,10 +37,11 @@ export default function Admin() {
     setRefreshKey(prev => prev + 1);
   };
 
-  // Reordered tabs: Schedule first, then Baristas
+  // Reordered tabs: Schedule first, then Baristas, then Inventory
   const tabs = [
     { id: 'schedule', label: 'Atur Jadwal', icon: CalendarDays },
-    { id: 'baristas', label: 'Kelola Barista', icon: Users }
+    { id: 'baristas', label: 'Kelola Barista', icon: Users },
+    { id: 'inventory', label: 'Kelola Inventory', icon: Package }
   ];
 
   if (!isAuthenticated) {
@@ -206,6 +208,10 @@ export default function Admin() {
         
         {activeTab === 'baristas' && (
           <BaristaManager onDataChange={handleDataChange} />
+        )}
+        
+        {activeTab === 'inventory' && (
+          <Inventory />
         )}
       </div>
     </div>

@@ -1,14 +1,23 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Home, Calendar, Settings } from 'lucide-react';
+import { Home, Calendar, Settings, ClipboardCheck } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Schedule from './pages/Schedule';
 import Admin from './pages/Admin';
+import StockOpname from './pages/StockOpname';
+import StockHistory from './pages/StockHistory';
 import './styles/global.css';
 
 // Simple Navigation Component
 function Navigation() {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
+
+  const navItems = [
+    { path: '/', icon: Home, label: 'Dashboard' },
+    { path: '/schedule', icon: Calendar, label: 'Jadwal' },
+    { path: '/stock-opname', icon: ClipboardCheck, label: 'Stock' },
+    { path: '/admin', icon: Settings, label: 'Admin' }
+  ];
 
   return (
     <nav style={{
@@ -18,44 +27,32 @@ function Navigation() {
       right: 0,
       background: 'var(--color-bg-secondary)',
       borderTop: '1px solid var(--color-bg-tertiary)',
-      padding: 'var(--spacing-sm) var(--spacing-md)',
+      padding: 'var(--spacing-sm)',
       display: 'flex',
       justifyContent: 'space-around',
-      zIndex: 100
+      gap: 'var(--spacing-xs)',
+      zIndex: 100,
+      overflowX: 'auto'
     }}>
-      <Link to="/" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        color: isActive('/') ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
-        fontSize: 'var(--font-size-sm)',
-        gap: '4px'
-      }}>
-        <Home size={24} />
-        <span>Dashboard</span>
-      </Link>
-      <Link to="/schedule" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        color: isActive('/schedule') ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
-        fontSize: 'var(--font-size-sm)',
-        gap: '4px'
-      }}>
-        <Calendar size={24} />
-        <span>Jadwal</span>
-      </Link>
-      <Link to="/admin" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        color: isActive('/admin') ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
-        fontSize: 'var(--font-size-sm)',
-        gap: '4px'
-      }}>
-        <Settings size={24} />
-        <span>Admin</span>
-      </Link>
+      {navItems.map(item => {
+        const Icon = item.icon;
+        const active = isActive(item.path);
+        return (
+          <Link key={item.path} to={item.path} style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            color: active ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
+            fontSize: 'var(--font-size-sm)',
+            gap: '4px',
+            minWidth: '60px',
+            padding: 'var(--spacing-xs)'
+          }}>
+            <Icon size={22} />
+            <span style={{ fontSize: '0.75rem' }}>{item.label}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }
@@ -96,6 +93,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/schedule" element={<Schedule />} />
+          <Route path="/stock-opname" element={<StockOpname />} />
+          <Route path="/stock-history" element={<StockHistory />} />
           <Route path="/admin" element={<Admin />} />
         </Routes>
       </Layout>

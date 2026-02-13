@@ -37,6 +37,54 @@ export default async function handler(req, res) {
       )
     `;
 
+    // Create inventory_items table
+    await sql`
+      CREATE TABLE IF NOT EXISTS inventory_items (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        unit VARCHAR(20) NOT NULL,
+        min_stock DECIMAL(10,2),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+    // Create stock_transactions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_transactions (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER REFERENCES inventory_items(id) ON DELETE CASCADE,
+        transaction_date DATE NOT NULL,
+        transaction_type VARCHAR(10) NOT NULL,
+        quantity DECIMAL(10,2) NOT NULL,
+        last_stock DECIMAL(10,2),
+        current_stock DECIMAL(10,2),
+        notes TEXT,
+        created_by INTEGER REFERENCES baristas(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+    // Create stock_opname table
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_opname (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER REFERENCES inventory_items(id) ON DELETE CASCADE,
+        opname_date DATE NOT NULL,
+        beginning_stock DECIMAL(10,2) NOT NULL,
+        stock_in DECIMAL(10,2) DEFAULT 0,
+        expected_stock DECIMAL(10,2),
+        actual_stock DECIMAL(10,2) NOT NULL,
+        stock_out DECIMAL(10,2),
+        variance DECIMAL(10,2),
+        notes TEXT,
+        created_by INTEGER REFERENCES baristas(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(item_id, opname_date)
+      )
+    `;
+
     // Check if baristas table is empty, seed default data
     const existingBaristas = await sql`SELECT COUNT(*) as count FROM baristas`;
     
@@ -56,7 +104,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ 
       success: true, 
       message: 'Database initialized successfully',
-      tables: ['baristas', 'schedules']
+      tables: ['baristas', 'schedules', 'inventory_items', 'stock_transactions', 'stock_opname']
     });
 
   } catch (error) {

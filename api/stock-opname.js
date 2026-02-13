@@ -71,35 +71,20 @@ export default async function handler(req, res) {
         });
       }
 
-      // Get last stock (beginning stock) from previous day or from latest stock_opname
-      const previousDay = new Date(opname_date);
-      previousDay.setDate(previousDay.getDate() - 1);
-      const prevDateStr = previousDay.toISOString().split('T')[0];
-
+      // Get last stock (beginning stock) from most recent previous stock_opname
       let beginning_stock = 0;
       
-      // Try to get from previous day's stock opname
+      // Find the most recent opname BEFORE this date for this item
       const prevOpname = await sql`
         SELECT actual_stock 
         FROM stock_opname 
-        WHERE item_id = ${item_id} AND opname_date = ${prevDateStr}
+        WHERE item_id = ${item_id} AND opname_date < ${opname_date}
+        ORDER BY opname_date DESC
+        LIMIT 1
       `;
 
       if (prevOpname.length > 0) {
         beginning_stock = parseFloat(prevOpname[0].actual_stock);
-      } else {
-        // If no previous opname, try to get from latest transaction
-        const lastTransaction = await sql`
-          SELECT current_stock 
-          FROM stock_transactions 
-          WHERE item_id = ${item_id} 
-          ORDER BY transaction_date DESC, created_at DESC 
-          LIMIT 1
-        `;
-        
-        if (lastTransaction.length > 0) {
-          beginning_stock = parseFloat(lastTransaction[0].current_stock);
-        }
       }
 
       // Calculate stock values
@@ -123,6 +108,7 @@ export default async function handler(req, res) {
         )
         ON CONFLICT (item_id, opname_date)
         DO UPDATE SET
+          beginning_stock = ${beginning_stock},
           stock_in = ${stockInValue},
           actual_stock = ${actualStockValue},
           expected_stock = ${expected_stock},

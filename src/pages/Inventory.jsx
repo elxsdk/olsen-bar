@@ -375,23 +375,7 @@ function ItemFormModal({ item, onClose, onSave, categories }) {
   };
 
   return (
-    <Modal onClose={onClose}>
-      <div style={{
-        background: 'var(--color-bg-secondary)',
-        borderRadius: 'var(--border-radius-lg)',
-        padding: 'var(--spacing-lg)',
-        maxWidth: '500px',
-        width: '100%'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-          <h3 style={{ margin: 0, fontSize: 'var(--font-size-xl)', color: 'var(--color-accent-primary)' }}>
-            {item ? 'Edit Item' : 'Tambah Item Baru'}
-          </h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-secondary)', padding: 'var(--spacing-xs)', cursor: 'pointer' }}>
-            <X size={24} />
-          </button>
-        </div>
-
+    <Modal isOpen={true} onClose={onClose} title={item ? 'Edit Item' : 'Tambah Item Baru'}>
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
             <div>
@@ -521,7 +505,6 @@ function ItemFormModal({ item, onClose, onSave, categories }) {
             </button>
           </div>
         </form>
-      </div>
     </Modal>
   );
 }
